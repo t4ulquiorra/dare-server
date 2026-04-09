@@ -511,6 +511,14 @@ wss.on('connection', (ws) => {
         case 'reject_suggestion':
           if (room) handleRejectSuggestion(ws, payload, room, userId);
           break;
+        case 'client_capabilities':
+          // Respond with server capabilities
+          send(ws, 'server_capabilities', proto.lookupType('listentogether.ServerCapabilities'), {
+            supportsProtobuf: true,
+            supportsCompression: false,
+            serverVersion: '1.0.0',
+          });
+          break;
         case 'ping':
           sendNoPayload(ws, 'pong');
           break;
