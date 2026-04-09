@@ -462,6 +462,7 @@ wss.on('connection', (ws) => {
   ws.on('message', (data) => {
     try {
       const { type, payload } = decode(data);
+      console.log('Received message type:', type);
 
       // Get room/user context if available
       const ctx = wsToUser.get(ws);
@@ -526,7 +527,7 @@ wss.on('connection', (ws) => {
           console.log(`Unknown message type: ${type}`);
       }
     } catch (err) {
-      console.error('Error handling message:', err);
+      console.error('Error handling message:', err.message, err.stack);
     }
   });
 
