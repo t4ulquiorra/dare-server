@@ -295,6 +295,25 @@ function handlePlaybackAction(ws, payloadBytes, room, userId) {
   // Inject server time
   p.serverTime = Date.now();
 
+  // For track changes, initiate buffer protocol
+  if (p.action === 'change_track' && p.trackInfo) {
+    const guests = Object.values(room.users).filter(u => u.id !== room.hostId && u.ws !== null);
+    if (guests.length > 0) {
+      room.bufferWaiting = {
+        trackId: p.trackInfo.id,
+        waitingFor: new Set(guests.map(u => u.id))
+      };
+      // Send track change to guests first
+      broadcast(room, 'sync_playback', PlaybackActionPayload, p, userId);
+      // Then send buffer_wait
+      broadcast(room, 'buffer_wait', BufferWaitPayload, {
+        trackId: p.trackInfo.id,
+        waitingFor: guests.map(u => u.id)
+      }, userId);
+      return;
+    }
+  }
+
   // Forward to all guests
   broadcast(room, 'sync_playback', PlaybackActionPayload, p, userId);
 }
