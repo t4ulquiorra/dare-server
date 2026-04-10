@@ -473,7 +473,18 @@ function handleRejectSuggestion(ws, payloadBytes, room, requesterId) {
 
 // ─── WebSocket server ─────────────────────────────────────────────────────────
 
-const wss = new WebSocket.Server({ port: PORT });
+const http = require('http');
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200);
+    res.end('OK');
+  } else {
+    res.writeHead(426, { 'Upgrade': 'websocket' });
+    res.end('Upgrade Required');
+  }
+});
+server.listen(PORT);
+const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
   console.log('New connection');
