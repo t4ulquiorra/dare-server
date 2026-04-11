@@ -230,6 +230,15 @@ function handleApproveJoin(ws, payloadBytes, room, requesterId) {
     state: buildRoomState(room),
   });
 
+  // If there is a current track, immediately send buffer_complete + seek + play
+  if (room.currentTrack && pending.ws.readyState === 1) {
+    send(pending.ws, 'buffer_complete', BufferCompletePayload, { trackId: room.currentTrack.id });
+    send(pending.ws, 'sync_playback', PlaybackActionPayload, { action: 'seek', position: room.position || 0, serverTime: Date.now() });
+    if (room.isPlaying) {
+      send(pending.ws, 'sync_playback', PlaybackActionPayload, { action: 'play', position: room.position || 0, serverTime: Date.now() });
+    }
+  }
+
   // Notify everyone else
   broadcast(room, 'user_joined', UserJoinedPayload, {
     userId,
@@ -306,36 +315,45 @@ function handlePlaybackAction(ws, payloadBytes, room, userId) {
   if (p.queue && p.queue.length > 0) room.queue = p.queue;
   p.serverTime = Date.now();
 
-  // Broadcast to ALL users including host (matches Metrolist behavior)
-  broadcastAll(room, 'sync_playback', PlaybackActionPayload, p);
-
-  // On track change: immediately send pause + buffer_complete
+  // change_track: special handling — broadcast to all, then pause + buffer_complete + seek
   if (p.action === 'change_track' && p.trackInfo) {
     const trackId = p.trackInfo.id;
+    room.currentTrack = p.trackInfo;
+    room.position = 0;
+    room.isPlaying = false;
     room.bufferWaiting = null;
-    broadcastAll(room, 'sync_playback', PlaybackActionPayload, {
-      action: 'pause',
-      position: p.position || 0,
-      serverTime: Date.now(),
-    });
+
+    broadcastAll(room, 'sync_playback', PlaybackActionPayload, p);
+    broadcastAll(room, 'sync_playback', PlaybackActionPayload, { action: 'pause', position: 0, serverTime: Date.now() });
     broadcastAll(room, 'buffer_complete', BufferCompletePayload, { trackId });
+    broadcastAll(room, 'sync_playback', PlaybackActionPayload, { action: 'seek', position: 0, serverTime: Date.now() });
+    // Do NOT send play here — IsPlaying is false after track change
+    return;
   }
+
+  // All other actions: update state and broadcast to all
+  if (p.action === 'play') { room.isPlaying = true; room.position = p.position || 0; p.serverTime = Date.now(); }
+  if (p.action === 'pause') { room.isPlaying = false; room.position = p.position || 0; }
+  if (p.action === 'seek') { room.position = p.position || 0; }
+  if (p.volume !== undefined && p.volume > 0) room.volume = p.volume;
+  if (p.queue && p.queue.length > 0) room.queue = p.queue;
+
+  broadcastAll(room, 'sync_playback', PlaybackActionPayload, p);
 }
 
 function handleBufferReady(ws, payloadBytes, room, userId) {
   const p = decodePayload(proto.lookupType('listentogether.BufferReadyPayload'), payloadBytes);
   const { trackId } = p;
+  const position = room.position || 0;
 
-  if (!room.bufferWaiting || room.bufferWaiting.trackId !== trackId) return;
-
-  room.bufferWaiting.waitingFor.delete(userId);
-
-  if (room.bufferWaiting.waitingFor.size === 0) {
-    room.bufferWaiting = null;
-    broadcast(room, 'buffer_complete', BufferCompletePayload, { trackId });
-  } else {
-    const waitingFor = [...room.bufferWaiting.waitingFor];
-    broadcast(room, 'buffer_wait', BufferWaitPayload, { trackId, waitingFor });
+  // Per-client ACK: send buffer_complete + seek + play back to just this client
+  const user = room.users[userId];
+  if (user && user.ws && user.ws.readyState === 1) {
+    send(user.ws, 'buffer_complete', BufferCompletePayload, { trackId });
+    send(user.ws, 'sync_playback', PlaybackActionPayload, { action: 'seek', position, serverTime: Date.now() });
+    if (room.isPlaying) {
+      send(user.ws, 'sync_playback', PlaybackActionPayload, { action: 'play', position, serverTime: Date.now() });
+    }
   }
 }
 
