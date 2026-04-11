@@ -228,6 +228,12 @@ function handleApproveJoin(ws, payloadBytes, room, requesterId) {
   }, userId);
 
   console.log(`Join approved: ${pending.username} (${userId}) in room ${room.code}`);
+
+  // Ask host to send a full sync so the new guest gets current track
+  const hostUser = room.users[room.hostId];
+  if (hostUser && hostUser.ws) {
+    sendNoPayload(hostUser.ws, 'request_sync');
+  }
 }
 
 function handleRejectJoin(ws, payloadBytes, room, requesterId) {
