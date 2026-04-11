@@ -144,6 +144,15 @@ function broadcast(room, type, PayloadType, fields, excludeUserId = null) {
 
 // ─── Message handlers ─────────────────────────────────────────────────────────
 
+function broadcastAll(room, type, PayloadType, fields) {
+  const buf = encode(type, PayloadType, fields);
+  for (const user of Object.values(room.users)) {
+    if (user.ws && user.ws.readyState === WebSocket.OPEN) {
+      user.ws.send(buf);
+    }
+  }
+}
+
 function handleCreateRoom(ws, payloadBytes) {
   const p = decodePayload(proto.lookupType('listentogether.CreateRoomPayload'), payloadBytes);
   const username = p.username || 'Host';
@@ -290,38 +299,27 @@ function handlePlaybackAction(ws, payloadBytes, room, userId) {
 
   const p = decodePayload(PlaybackActionPayload, payloadBytes);
 
-  // Update room state
   room.lastUpdate = Date.now();
-  if (p.isPlaying !== undefined) room.isPlaying = p.isPlaying;
   if (p.position !== undefined && p.position > 0) room.position = p.position;
   if (p.volume !== undefined && p.volume > 0) room.volume = p.volume;
   if (p.trackInfo) room.currentTrack = p.trackInfo;
   if (p.queue && p.queue.length > 0) room.queue = p.queue;
-
-  // Inject server time
   p.serverTime = Date.now();
 
-  // For track changes, initiate buffer protocol
-  if (p.action === 'change_track' && p.trackInfo) {
-    const guests = Object.values(room.users).filter(u => u.id !== room.hostId && u.ws !== null);
-    if (guests.length > 0) {
-      room.bufferWaiting = {
-        trackId: p.trackInfo.id,
-        waitingFor: new Set(guests.map(u => u.id))
-      };
-      // Send track change to guests first
-      broadcast(room, 'sync_playback', PlaybackActionPayload, p, userId);
-      // Then send buffer_wait
-      broadcast(room, 'buffer_wait', BufferWaitPayload, {
-        trackId: p.trackInfo.id,
-        waitingFor: guests.map(u => u.id)
-      }, userId);
-      return;
-    }
-  }
+  // Broadcast to ALL users including host (matches Metrolist behavior)
+  broadcastAll(room, 'sync_playback', PlaybackActionPayload, p);
 
-  // Forward to all guests
-  broadcast(room, 'sync_playback', PlaybackActionPayload, p, userId);
+  // On track change: immediately send pause + buffer_complete
+  if (p.action === 'change_track' && p.trackInfo) {
+    const trackId = p.trackInfo.id;
+    room.bufferWaiting = null;
+    broadcastAll(room, 'sync_playback', PlaybackActionPayload, {
+      action: 'pause',
+      position: p.position || 0,
+      serverTime: Date.now(),
+    });
+    broadcastAll(room, 'buffer_complete', BufferCompletePayload, { trackId });
+  }
 }
 
 function handleBufferReady(ws, payloadBytes, room, userId) {
