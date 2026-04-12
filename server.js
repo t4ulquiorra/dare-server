@@ -323,11 +323,16 @@ function handlePlaybackAction(ws, payloadBytes, room, userId) {
     room.isPlaying = false;
     room.bufferWaiting = null;
 
+    const userCount = Object.keys(room.users).length;
+    console.log(`[change_track] trackId=${trackId}, users=${userCount}`);
     broadcastAll(room, 'sync_playback', PlaybackActionPayload, p);
+    console.log('[change_track] sent change_track to all');
     broadcastAll(room, 'sync_playback', PlaybackActionPayload, { action: 'pause', position: 0, serverTime: Date.now() });
+    console.log('[change_track] sent pause to all');
     broadcastAll(room, 'buffer_complete', BufferCompletePayload, { trackId });
+    console.log('[change_track] sent buffer_complete to all');
     broadcastAll(room, 'sync_playback', PlaybackActionPayload, { action: 'seek', position: 0, serverTime: Date.now() });
-    // Do NOT send play here — IsPlaying is false after track change
+    console.log('[change_track] sent seek to all');
     return;
   }
 
