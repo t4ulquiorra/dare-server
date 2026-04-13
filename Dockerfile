@@ -33,8 +33,8 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
 
 # Create non-root user for security
-RUN addgroup -g 1000 metrolist && \
-    adduser -D -u 1000 -G metrolist metrolist
+RUN addgroup -g 1000 dare && \
+    adduser -D -u 1000 -G dare dare
 
 # Set working directory
 WORKDIR /app
@@ -43,10 +43,10 @@ WORKDIR /app
 COPY --from=builder /build/main .
 
 # Change ownership to non-root user
-RUN chown -R metrolist:metrolist /app
+RUN chown -R dare:dare /app
 
 # Switch to non-root user
-USER metrolist
+USER dare
 
 # Expose port (default 8080, can be overridden)
 EXPOSE 8080

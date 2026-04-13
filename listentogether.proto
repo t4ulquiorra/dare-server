@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package listentogether;
 
-option java_package = "com.treu.music.listentogether.proto";
+option java_package = "com.dare.music.listentogether.proto";
 option java_outer_classname = "Listentogether";
-option go_package = "github.com/nyxiereal/metroserver/proto";
+option go_package = "github.com/t4ulquiorra/dare-server/proto";
 option java_multiple_files = false;
 
 // Message envelope with type and payload

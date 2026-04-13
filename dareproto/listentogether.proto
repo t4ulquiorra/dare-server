@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package listentogether;
 
-option go_package = "github.com/nyxiereal/metroserver/proto";
-option java_package = "com.metrolist.music.listentogether.proto";
+option go_package = "github.com/t4ulquiorra/dare-server/proto";
+option java_package = "com.dare.music.listentogether.proto";
 option java_outer_classname = "Listentogether";
 option java_multiple_files = false;
 
